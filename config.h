@@ -3,9 +3,9 @@
 // ========================================
 // WiFi Configuration
 // ========================================
-// Replace with your WiFi credentials
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
+// Include sensitive data from non-committed secrets.h
+// If you don't have this file, copy secrets.h.example to secrets.h
+#include "secrets.h"
 
 // WiFi connection timeout (milliseconds)
 #define WIFI_CONNECT_TIMEOUT_MS 10000
@@ -39,8 +39,8 @@
 #define NUM_DASHBOARDS 4
 
 // Dashboard 3 (Image Animation) settings
-#define IMAGE_ROTATION_MS 83 // Time each image is displayed
-#define NUM_ROTATION_IMAGES 4  // Number of images to rotate through
+#define IMAGE_ROTATION_MS 83  // Time each image is displayed
+#define NUM_ROTATION_IMAGES 4 // Number of images to rotate through
 
 // ========================================
 // Touch Configuration
