@@ -10,10 +10,7 @@ import (
 
 // Message represents the response for the message endpoint
 type Message struct {
-	Author  string `json:"author"`
-	Message string `json:"message"` // Kept for backward compat if needed, or we can just use Text
-	Text    string `json:"text"`
-	Time    string `json:"time"`
+	Message string `json:"message"`
 }
 
 // CORS middleware to allow requests from any origin
@@ -47,7 +44,6 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	initDB()
 	port := ":8081"
 
 	// Register routes

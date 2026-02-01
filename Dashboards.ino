@@ -40,8 +40,6 @@ bool wifiConnected = false;
 
 // Cached data
 String cachedMessage = "";
-String cachedAuthor = "";
-String cachedTime = "";
 String cachedWeatherTemp = "";
 String cachedWeatherCondition = "";
 String cachedWeatherHumidity = "";
@@ -101,20 +99,16 @@ void fetchMessage() {
 
   if (response.length() > 0) {
     // Parse JSON: {"message": "Hello World"}
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, response);
 
     if (!error) {
-      cachedMessage = doc["text"].as<String>();
-      cachedAuthor = doc["author"].as<String>();
-      cachedTime = doc["time"].as<String>();
+      cachedMessage = doc["message"].as<String>();
       lastMessageFetch = millis();
       Serial.println("Message updated: " + cachedMessage);
     } else {
       Serial.println("JSON parse error: " + String(error.c_str()));
       cachedMessage = "Error: Invalid JSON";
-      cachedAuthor = "";
-      cachedTime = "";
     }
   } else {
     cachedMessage = "Error: Connection failed";
@@ -283,27 +277,15 @@ void drawDashboard1() {
 
   // Draw message
   sprite.fillSprite(COLOR_BACKGROUND);
-  drawHeader("X FEED");
+  drawHeader("MESSAGE");
 
   if (cachedMessage.startsWith("Error:")) {
     sprite.setTextColor(COLOR_ERROR, COLOR_BACKGROUND);
-    drawCenteredText(cachedMessage, SCREEN_HEIGHT / 2, 4);
   } else {
-    // Top Left: Author
-    sprite.setTextDatum(TL_DATUM);
-    sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-    sprite.drawString("@" + cachedAuthor, 10, 35, 2);
-
-    // Center: Message Text
-    // Adjust Y position since we have headers and footers
     sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
-    drawCenteredText(cachedMessage, SCREEN_HEIGHT / 2, 4);
-
-    // Bottom Right: Time
-    sprite.setTextDatum(BR_DATUM);
-    sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-    sprite.drawString(cachedTime, SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10, 2);
   }
+
+  drawCenteredText(cachedMessage, SCREEN_HEIGHT / 2, 4);
 
   sprite.pushSprite(0, 0);
 }
