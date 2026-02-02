@@ -218,6 +218,12 @@ void fetchIntervals() {
 }
 
 String cachedWindSpeed = "";
+float cachedForecast3hTemp = 0;
+String cachedForecast3hCond = "";
+float cachedForecast3hPrecip = 0;
+float cachedForecastTomTemp = 0;
+String cachedForecastTomCond = "";
+float cachedForecastTomPrecip = 0;
 String cachedForecast3h = "";
 String cachedForecastTom = "";
 
@@ -240,18 +246,21 @@ void fetchWeather() {
       cachedWindSpeed = String(doc["wind_speed"].as<float>(), 1);
 
       // Format 3h Forecast
-      float t3 = doc["forecast_3h"]["temp"];
-      String c3 = doc["forecast_3h"]["condition"];
-      float p3 = doc["forecast_3h"]["precip"];
-      cachedForecast3h = "      +3h:" + String(t3, 0) + "C " + c3 +
-                         " - Rain: " + String(p3, 0) + "%";
+      cachedForecast3hTemp = doc["forecast_3h"]["temp"];
+      cachedForecast3hCond = doc["forecast_3h"]["condition"].as<String>();
+      cachedForecast3hPrecip = doc["forecast_3h"]["precip"];
+      cachedForecast3h = "      +3h:" + String(cachedForecast3hTemp, 0) + "C " +
+                         cachedForecast3hCond +
+                         " - Rain: " + String(cachedForecast3hPrecip, 0) + "%";
 
       // Format Tomorrow Forecast
-      float tT = doc["forecast_tom"]["temp"];
-      String cT = doc["forecast_tom"]["condition"];
-      float pT = doc["forecast_tom"]["precip"];
-      cachedForecastTom = "Tomorrow: " + String(tT, 0) + "C " + cT +
-                          " - Rain: " + String(pT, 0) + "%";
+      cachedForecastTomTemp = doc["forecast_tom"]["temp"];
+      cachedForecastTomCond = doc["forecast_tom"]["condition"].as<String>();
+      cachedForecastTomPrecip = doc["forecast_tom"]["precip"];
+      cachedForecastTom = "Tomorrow: " + String(cachedForecastTomTemp, 0) +
+                          "C " + cachedForecastTomCond +
+                          " - Rain: " + String(cachedForecastTomPrecip, 0) +
+                          "%";
 
       lastWeatherFetch = millis();
       Serial.println("Weather updated for Aix-les-Bains");
@@ -650,14 +659,36 @@ void drawDashboard2() {
     sprite.drawLine(10, 105, SCREEN_WIDTH - 10, 105, COLOR_SECONDARY);
 
     // Forecasts (Bottom Section)
-    sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
     sprite.setTextDatum(TL_DATUM);
 
-    // +3h Forecast
-    sprite.drawString(cachedForecast3h, 10, 115, 2);
+    // Helper to draw colorized forecast line
+    auto drawForecastLine = [&](int y, String label, float temp, String cond,
+                                float precip) {
+      int x = 10;
+      sprite.setTextColor(TFT_WHITE, COLOR_BACKGROUND);
+      String text1 = label + String(temp, 0) + "C ";
+      sprite.drawString(text1, x, y, 2);
+      x += sprite.textWidth(text1, 2);
 
-    // Tomorrow Forecast
-    sprite.drawString(cachedForecastTom, 10, 135, 2);
+      sprite.setTextColor(TFT_YELLOW, COLOR_BACKGROUND);
+      String text2 = cond + " ";
+      sprite.drawString(text2, x, y, 2);
+      x += sprite.textWidth(text2, 2);
+
+      sprite.setTextColor(TFT_WHITE, COLOR_BACKGROUND);
+      sprite.drawString("- ", x, y, 2);
+      x += sprite.textWidth("- ", 2);
+
+      sprite.setTextColor(
+          TFT_CYAN, COLOR_BACKGROUND); // User asked for blue, TFT_CYAN/TFT_BLUE
+      String text3 = "Rain: " + String(precip, 0) + "%";
+      sprite.drawString(text3, x, y, 2);
+    };
+
+    drawForecastLine(115, "       +3h:", cachedForecast3hTemp,
+                     cachedForecast3hCond, cachedForecast3hPrecip);
+    drawForecastLine(135, "Tomorrow: ", cachedForecastTomTemp,
+                     cachedForecastTomCond, cachedForecastTomPrecip);
   }
 
   sprite.pushSprite(0, 0);
