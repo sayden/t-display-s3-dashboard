@@ -46,12 +46,42 @@ String cachedWeatherHumidity = "";
 unsigned long lastMessageFetch = 0;
 unsigned long lastWeatherFetch = 0;
 
+// Intervals cached data
+float cachedCtl = 0;
+float cachedAtl = 0;
+float cachedRampRate = 0;
+// Activity 1 (newest)
+float cachedActivity1AvgWatts = 0;
+float cachedActivity1NormWatts = 0;
+float cachedActivity1AvgHR = 0;
+float cachedActivity1LRBalance = 0;
+float cachedActivity1FTP = 0;
+float cachedActivity1Calories = 0;
+// Activity 2 (oldest)
+float cachedActivity2AvgWatts = 0;
+float cachedActivity2NormWatts = 0;
+float cachedActivity2AvgHR = 0;
+float cachedActivity2LRBalance = 0;
+float cachedActivity2FTP = 0;
+float cachedActivity2Calories = 0;
+float cachedActivity1Distance = 0;
+float cachedActivity1MovingTime = 0;
+float cachedActivity2Distance = 0;
+float cachedActivity2MovingTime = 0;
+String cachedActivity1Date = "";
+String cachedActivity2Date = "";
+unsigned long lastIntervalsFetch = 0;
+
 // Tamagotchi cached data
 String cachedDogName = "";
 int cachedHunger = 0;
 int cachedHappiness = 0;
 int cachedHygiene = 0;
 int cachedHealth = 0;
+int cachedDiscipline = 0;
+float cachedWeight = 0;
+bool cachedIsSick = false;
+int cachedPoopCount = 0;
 String cachedState = "";
 bool cachedNeedsAttention = false;
 uint16_t dogSpriteBuffer[80 * 80]; // 80x80 sprite buffer
@@ -128,6 +158,65 @@ void fetchMessage() {
   }
 }
 
+/**
+ * Fetch intervals data from server for Dashboard 1
+ */
+void fetchIntervals() {
+  String url = String(SERVER_BASE_URL) + String(INTERVALS_ENDPOINT);
+  String response = httpGet(url);
+
+  if (response.length() > 0) {
+    // Parse JSON with fitness and activities data
+    DynamicJsonDocument doc(4096); // Large buffer for response
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (!error) {
+      // Parse fitness data
+      cachedCtl = doc["ctl"].as<float>();
+      cachedAtl = doc["atl"].as<float>();
+      cachedRampRate = doc["rampRate"].as<float>();
+
+      // Parse activities (expect at least 2)
+      JsonArray activities = doc["activities"];
+      if (activities.size() >= 2) {
+        if (activities.size() >= 2) {
+          // Activity 0 is oldest (from server)
+          JsonObject act1 = activities[0];
+          cachedActivity1AvgWatts = act1["icu_average_watts"].as<float>();
+          cachedActivity1NormWatts = act1["icu_weighted_avg_watts"].as<float>();
+          cachedActivity1AvgHR = act1["average_heartrate"].as<float>();
+          cachedActivity1LRBalance = act1["avg_lr_balance"].as<float>();
+          cachedActivity1FTP = act1["icu_rolling_ftp"].as<float>();
+          cachedActivity1Calories = act1["calories"].as<float>();
+          cachedActivity1Distance = act1["distance"].as<float>();
+          cachedActivity1MovingTime = act1["moving_time"].as<float>();
+          cachedActivity1Date = act1["start_date_local"].as<String>();
+
+          // Activity 1 is newest (from server)
+          JsonObject act2 = activities[1];
+          cachedActivity2AvgWatts = act2["icu_average_watts"].as<float>();
+          cachedActivity2NormWatts = act2["icu_weighted_avg_watts"].as<float>();
+          cachedActivity2AvgHR = act2["average_heartrate"].as<float>();
+          cachedActivity2LRBalance = act2["avg_lr_balance"].as<float>();
+          cachedActivity2FTP = act2["icu_rolling_ftp"].as<float>();
+          cachedActivity2Calories = act2["calories"].as<float>();
+          cachedActivity2Distance = act2["distance"].as<float>();
+          cachedActivity2MovingTime = act2["moving_time"].as<float>();
+          cachedActivity2Date = act2["start_date_local"].as<String>();
+        }
+      }
+
+      lastIntervalsFetch = millis();
+      Serial.println("Intervals data updated");
+    } else {
+      Serial.println("JSON parse error: " + String(error.c_str()));
+      cachedCtl = -1; // Error flag
+    }
+  } else {
+    cachedCtl = -1; // Error flag
+  }
+}
+
 String cachedWindSpeed = "";
 String cachedForecast3h = "";
 String cachedForecastTom = "";
@@ -154,15 +243,15 @@ void fetchWeather() {
       float t3 = doc["forecast_3h"]["temp"];
       String c3 = doc["forecast_3h"]["condition"];
       float p3 = doc["forecast_3h"]["precip"];
-      cachedForecast3h =
-          "+3h: " + String(t3, 0) + "C " + c3 + " Rain:" + String(p3, 0) + "%";
+      cachedForecast3h = "      +3h:" + String(t3, 0) + "C " + c3 +
+                         " - Rain: " + String(p3, 0) + "%";
 
       // Format Tomorrow Forecast
       float tT = doc["forecast_tom"]["temp"];
       String cT = doc["forecast_tom"]["condition"];
       float pT = doc["forecast_tom"]["precip"];
-      cachedForecastTom =
-          "Tom: " + String(tT, 0) + "C " + cT + " Rain:" + String(pT, 0) + "%";
+      cachedForecastTom = "Tomorrow: " + String(tT, 0) + "C " + cT +
+                          " - Rain: " + String(pT, 0) + "%";
 
       lastWeatherFetch = millis();
       Serial.println("Weather updated for Aix-les-Bains");
@@ -259,6 +348,10 @@ void fetchTamagotchi() {
       cachedHappiness = doc["dog"]["happiness"].as<int>();
       cachedHygiene = doc["dog"]["hygiene"].as<int>();
       cachedHealth = doc["dog"]["health"].as<int>();
+      cachedDiscipline = doc["dog"]["discipline"].as<int>();
+      cachedWeight = doc["dog"]["weight"].as<float>();
+      cachedIsSick = doc["dog"]["is_sick"].as<bool>();
+      cachedPoopCount = doc["dog"]["poop_count"].as<int>();
       cachedState = doc["state"].as<String>();
       cachedNeedsAttention = doc["needs_attention"].as<bool>();
 
@@ -323,47 +416,12 @@ void sendTamagotchiAction(const char *action) {
 // ========================================
 
 /**
- * Draw dashboard indicator dots
- */
-void drawIndicator() {
-  int dotSize = 6;
-  int spacing = 12;
-  int totalWidth = NUM_DASHBOARDS * spacing - (spacing - dotSize);
-  int startX = (SCREEN_WIDTH - totalWidth) / 2;
-  int y = SCREEN_HEIGHT - 12;
-
-  for (int i = 0; i < NUM_DASHBOARDS; i++) {
-    int x = startX + (i * spacing);
-    uint16_t color =
-        (i == currentDashboard) ? COLOR_INDICATOR_ON : COLOR_INDICATOR_OFF;
-    sprite.fillCircle(x, y, dotSize / 2, color);
-  }
-}
-
-/**
- * Draw WiFi status icon
- */
-void drawWiFiIcon() {
-  int x = 5;
-  int y = 5;
-  uint16_t color = wifiConnected ? COLOR_PRIMARY : COLOR_ERROR;
-
-  // Simple WiFi icon (three arcs)
-  sprite.drawArc(x + 5, y + 8, 10, 8, 180, 360, color, COLOR_BACKGROUND);
-  sprite.drawArc(x + 5, y + 8, 7, 5, 180, 360, color, COLOR_BACKGROUND);
-  sprite.fillCircle(x + 5, y + 8, 2, color);
-}
-
-/**
- * Draw header with title and indicators
+ * Draw header with title
  */
 void drawHeader(String title) {
   sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
   sprite.setTextDatum(TC_DATUM);
-  sprite.drawString(title, SCREEN_WIDTH / 2, 5, 2);
-
-  drawWiFiIcon();
-  drawIndicator();
+  sprite.drawString(title, SCREEN_WIDTH / 2, 4, 2);
 }
 
 /**
@@ -415,33 +473,131 @@ void drawCenteredText(String text, int y, int fontsize) {
 // ========================================
 
 /**
- * Dashboard 1: Message Display
+ * Dashboard 1: Intervals Training Data Display
  */
 void drawDashboard1() {
   sprite.fillSprite(COLOR_BACKGROUND);
-  drawHeader("X FEED");
+  drawHeader("TRAINING DATA");
 
-  // Fetch message if not cached or old
-  if (cachedMessage.length() == 0 || millis() - lastMessageFetch > 60000) {
+  // Fetch intervals if not cached or old
+  if (cachedCtl == 0 || millis() - lastIntervalsFetch > 60000) {
     sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
     sprite.setTextDatum(MC_DATUM);
     sprite.drawString("Loading...", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 2);
     sprite.pushSprite(0, 0);
 
-    fetchMessage();
+    fetchIntervals();
   }
 
-  // Draw message
+  // Clear and redraw
   sprite.fillSprite(COLOR_BACKGROUND);
-  drawHeader("MESSAGE");
+  drawHeader("TRAINING DATA");
 
-  if (cachedMessage.startsWith("Error:")) {
+  // Check for errors
+  if (cachedCtl < 0) {
     sprite.setTextColor(COLOR_ERROR, COLOR_BACKGROUND);
-  } else {
-    sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+    sprite.setTextDatum(MC_DATUM);
+    sprite.drawString("Error: Failed to load", SCREEN_WIDTH / 2,
+                      SCREEN_HEIGHT / 2, 2);
+    sprite.pushSprite(0, 0);
+
+    return;
   }
 
-  drawCenteredText(cachedMessage, SCREEN_HEIGHT / 2, 4);
+  // Screen: 320x170, Header takes ~25px
+  // Available space: 320x145
+  // Layout: Left column (0-157), Separator (158-161), Right column (162-319)
+
+  int leftX = 5;
+  int rightX = 165;
+  int columnWidth = 152;
+  int startY = 20;
+  int lineHeight = 13;
+
+  sprite.setTextDatum(TL_DATUM);
+  sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+
+  // Helper function to draw a labeled value
+  auto drawValue = [&](int x, int y, const char *label, float value,
+                       int decimals) {
+    // Label
+    sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
+    sprite.drawString(label, x, y, 1);
+
+    // Value
+    sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+    String valStr = String(value, decimals);
+    sprite.drawString(valStr, x + 70, y, 1);
+  };
+
+  // LEFT COLUMN - Oldest Activity
+  sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
+  sprite.drawString(cachedActivity1Date, leftX + 40, startY, 2);
+
+  int y = startY + 18;
+  drawValue(leftX, y, "Avg Power:", cachedActivity1AvgWatts, 0);
+  y += lineHeight;
+  drawValue(leftX, y, "Dist (km):", cachedActivity1Distance / 1000.0, 1);
+  y += lineHeight;
+  drawValue(leftX, y, "Time (m):", cachedActivity1MovingTime / 60.0, 0);
+  y += lineHeight;
+  drawValue(leftX, y, "Norm Power:", cachedActivity1NormWatts, 0);
+  y += lineHeight;
+  drawValue(leftX, y, "Avg HR:", cachedActivity1AvgHR, 0);
+  y += lineHeight;
+  drawValue(leftX, y, "L/R:", cachedActivity1LRBalance, 1);
+  y += lineHeight;
+  drawValue(leftX, y, "FTP:", cachedActivity1FTP, 0);
+  y += lineHeight;
+  drawValue(leftX, y, "Kcal:", cachedActivity1Calories, 0);
+
+  // VERTICAL SEPARATOR
+  sprite.drawFastVLine(159, 25, 120, COLOR_SECONDARY);
+
+  // RIGHT COLUMN - Newest Activity
+  sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
+  sprite.drawString(cachedActivity2Date, rightX + 40, startY, 2);
+
+  y = startY + 18;
+  drawValue(rightX, y, "Avg Power:", cachedActivity2AvgWatts, 0);
+  y += lineHeight;
+  drawValue(rightX, y, "Dist (km):", cachedActivity2Distance / 1000.0, 1);
+  y += lineHeight;
+  drawValue(rightX, y, "Time (m):", cachedActivity2MovingTime / 60.0, 0);
+  y += lineHeight;
+  drawValue(rightX, y, "Norm Power:", cachedActivity2NormWatts, 0);
+  y += lineHeight;
+  drawValue(rightX, y, "Avg HR:", cachedActivity2AvgHR, 0);
+  y += lineHeight;
+  drawValue(rightX, y, "L/R:", cachedActivity2LRBalance, 1);
+  y += lineHeight;
+  drawValue(rightX, y, "FTP:", cachedActivity2FTP, 0);
+  y += lineHeight;
+  drawValue(rightX, y, "Kcal:", cachedActivity2Calories, 0);
+
+  // FITNESS METRICS AT BOTTOM (Horizontal separator)
+  sprite.drawFastHLine(5, 148, SCREEN_WIDTH - 10, COLOR_SECONDARY);
+
+  sprite.setTextDatum(TL_DATUM);
+  String cStr = "Ctl: " + String(cachedCtl, 0) + " ";
+  String aStr = "Atl: " + String(cachedAtl, 0) + " ";
+  String rStr = "Ramp: " + String(cachedRampRate, 1) + " ";
+
+  int totalWidth = sprite.textWidth(cStr + aStr + rStr, 2);
+  int curX = (SCREEN_WIDTH - totalWidth) / 2;
+  int curY = 153;
+
+  sprite.setTextColor(TFT_PINK, COLOR_BACKGROUND);
+  sprite.drawString(cStr, curX, curY, 2);
+  curX += sprite.textWidth(cStr, 2);
+
+  sprite.setTextColor(TFT_RED, COLOR_BACKGROUND);
+  sprite.drawString(aStr, curX, curY, 2);
+  curX += sprite.textWidth(aStr, 2);
+
+  sprite.setTextColor(TFT_GREEN, COLOR_BACKGROUND);
+  sprite.drawString(rStr, curX, curY, 2);
+  curX += sprite.textWidth(rStr, 2);
 
   sprite.pushSprite(0, 0);
 }
@@ -480,28 +636,28 @@ void drawDashboard2() {
 
     // Temperature (Large)
     sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-    sprite.drawString(cachedWeatherTemp + " C", 20, 35, 6);
+    sprite.drawString(cachedWeatherTemp + " C", 15, 38, 6);
 
     // Condition & Wind (Right side)
     sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
-    sprite.drawString(cachedWeatherCondition, 140, 40, 4);
+    sprite.drawString(cachedWeatherCondition, 140, 37, 4);
 
     sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
     sprite.drawString("Wind: " + cachedWindSpeed + " km/h", 140, 65, 2);
-    sprite.drawString("Hum: " + cachedWeatherHumidity + "%", 140, 80, 2);
+    sprite.drawString(" Hum: " + cachedWeatherHumidity + "%", 140, 80, 2);
 
     // Forecast Separator
     sprite.drawLine(10, 105, SCREEN_WIDTH - 10, 105, COLOR_SECONDARY);
 
     // Forecasts (Bottom Section)
     sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
-    sprite.setTextDatum(TC_DATUM);
+    sprite.setTextDatum(TL_DATUM);
 
     // +3h Forecast
-    sprite.drawString(cachedForecast3h, SCREEN_WIDTH / 2, 115, 2);
+    sprite.drawString(cachedForecast3h, 10, 115, 2);
 
     // Tomorrow Forecast
-    sprite.drawString(cachedForecastTom, SCREEN_WIDTH / 2, 135, 2);
+    sprite.drawString(cachedForecastTom, 10, 135, 2);
   }
 
   sprite.pushSprite(0, 0);
@@ -595,10 +751,10 @@ void drawDashboard4() {
 
   // Draw stat bars (right side)
   int barX = 105;
-  int barY = 28;
+  int barY = 35;
   int barWidth = 80;
   int barHeight = 10;
-  int barSpacing = 22;
+  int barSpacing = 23;
 
   // Helper lambda-like function for drawing bars
   auto drawStatBar = [&](int y, const char *label, int value, uint16_t color) {
@@ -625,6 +781,7 @@ void drawDashboard4() {
   drawStatBar(barY + barSpacing * 2, "Clean", cachedHygiene, TFT_CYAN);
   drawStatBar(barY + barSpacing * 3, "Health", cachedHealth,
               cachedHealth > 50 ? TFT_GREEN : TFT_RED);
+  drawStatBar(barY + barSpacing * 2, "Discipline", cachedDiscipline, TFT_CYAN);
 
   // Draw action buttons at bottom
   int btnY = 138;

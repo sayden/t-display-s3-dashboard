@@ -61,13 +61,14 @@ func main() {
 	http.HandleFunc("/api/tamagotchi/discipline", corsMiddleware(handleDiscipline))
 	http.HandleFunc("/api/tamagotchi/cure", corsMiddleware(handleCure))
 	http.HandleFunc("/api/tamagotchi/reset", corsMiddleware(handleReset))
+	http.HandleFunc("/api/intervals", corsMiddleware(handleIntervals))
 	http.HandleFunc("/health", corsMiddleware(handleHealth))
 
 	// Print startup info
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║          Dashboard Server for Lilygo T-Display-S3          ║")
 	fmt.Println("╠════════════════════════════════════════════════════════════╣")
-	fmt.Printf("║  Server running on http://0.0.0.0%s                    ║\n", port)
+	fmt.Printf("║  Server running on http://0.0.0.0%s                     ║\n", port)
 	fmt.Println("╠════════════════════════════════════════════════════════════╣")
 	fmt.Println("║  Available endpoints:                                      ║")
 	fmt.Println("║    GET  /api/message              - Text message           ║")
@@ -79,6 +80,7 @@ func main() {
 	fmt.Println("║    POST /api/tamagotchi/discipline- Scold/praise           ║")
 	fmt.Println("║    POST /api/tamagotchi/cure      - Give medicine          ║")
 	fmt.Println("║    POST /api/tamagotchi/reset     - Start new game         ║")
+	fmt.Println("║    GET  /api/intervals            - Fetch intervals data   ║")
 	fmt.Println("║    GET  /health                   - Server health          ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()

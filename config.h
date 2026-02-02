@@ -25,6 +25,7 @@
 // Dashboard 4 (Tamagotchi) endpoint - currently unused but available for future
 // integration
 #define TAMAGOTCHI_ENDPOINT "/api/tamagotchi"
+#define INTERVALS_ENDPOINT "/api/intervals" // Intervals.icu training data
 
 // HTTP timeout (milliseconds)
 #define HTTP_TIMEOUT_MS 5000

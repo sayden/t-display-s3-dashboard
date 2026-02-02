@@ -57,6 +57,25 @@ func InitDB() error {
 		return err
 	}
 
+	// Create intervals cache table
+	intervalsSchema := `
+	CREATE TABLE IF NOT EXISTS intervals_cache (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		ctl REAL,
+		atl REAL,
+		ramp_rate REAL,
+		fatigue REAL,
+		stress REAL,
+		activities_json TEXT,
+		last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	`
+
+	_, err = db.Exec(intervalsSchema)
+	if err != nil {
+		return err
+	}
+
 	log.Println("Database initialized successfully")
 	return nil
 }
