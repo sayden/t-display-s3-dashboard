@@ -32,8 +32,8 @@
 // ========================================
 // Dashboard Configuration
 // ========================================
-// Auto-rotation interval in milliseconds (10 seconds by default)
-#define AUTO_ROTATION_MS 5000
+// Auto-rotation interval in milliseconds (1 minute by default)
+#define AUTO_ROTATION_MS 60000
 
 // Number of dashboards
 #define NUM_DASHBOARDS 4
@@ -46,7 +46,7 @@
 // Touch Configuration
 // ========================================
 // Touch detection area for "next dashboard" gesture
-// X coordinate threshold (right half of screen = x > 160)
+// X coordinate threshold (right half of screen = x > 60)
 #define TOUCH_NEXT_THRESHOLD_X 160
 
 // Minimum touch duration to register (milliseconds)

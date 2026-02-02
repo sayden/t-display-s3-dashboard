@@ -46,6 +46,19 @@ String cachedWeatherHumidity = "";
 unsigned long lastMessageFetch = 0;
 unsigned long lastWeatherFetch = 0;
 
+// Tamagotchi cached data
+String cachedDogName = "";
+int cachedHunger = 0;
+int cachedHappiness = 0;
+int cachedHygiene = 0;
+int cachedHealth = 0;
+String cachedState = "";
+bool cachedNeedsAttention = false;
+uint16_t dogSpriteBuffer[80 * 80]; // 80x80 sprite buffer
+bool spriteLoaded = false;
+unsigned long lastTamagotchiFetch = 0;
+int tamagotchiTouchAction = 0; // 0=none, 1=feed, 2=play, 3=clean
+
 // ========================================
 // HTTP Helper Functions
 // ========================================
@@ -160,6 +173,149 @@ void fetchWeather() {
   } else {
     cachedWeatherCondition = "Error: Connection failed";
   }
+}
+
+// ========================================
+// Base64 Decoding for Sprite Images
+// ========================================
+
+// Base64 character lookup table
+static const char base64_chars[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+int base64_decode_char(char c) {
+  if (c >= 'A' && c <= 'Z')
+    return c - 'A';
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 26;
+  if (c >= '0' && c <= '9')
+    return c - '0' + 52;
+  if (c == '+')
+    return 62;
+  if (c == '/')
+    return 63;
+  return -1;
+}
+
+/**
+ * Decode base64 string directly into sprite buffer
+ * @param base64 Base64 encoded string
+ * @param output Pointer to uint16_t buffer
+ * @param maxBytes Maximum bytes to decode
+ * @return Number of bytes decoded
+ */
+int decodeBase64ToBuffer(const String &base64, uint16_t *output, int maxBytes) {
+  int len = base64.length();
+  int outIdx = 0;
+  uint8_t *outBytes = (uint8_t *)output;
+
+  for (int i = 0; i < len && outIdx < maxBytes; i += 4) {
+    int a = base64_decode_char(base64[i]);
+    int b = (i + 1 < len) ? base64_decode_char(base64[i + 1]) : 0;
+    int c = (i + 2 < len) ? base64_decode_char(base64[i + 2]) : 0;
+    int d = (i + 3 < len) ? base64_decode_char(base64[i + 3]) : 0;
+
+    if (a < 0)
+      a = 0;
+    if (b < 0)
+      b = 0;
+    if (c < 0)
+      c = 0;
+    if (d < 0)
+      d = 0;
+
+    uint32_t triple = (a << 18) | (b << 12) | (c << 6) | d;
+
+    if (outIdx < maxBytes)
+      outBytes[outIdx++] = (triple >> 16) & 0xFF;
+    if (outIdx < maxBytes && base64[i + 2] != '=')
+      outBytes[outIdx++] = (triple >> 8) & 0xFF;
+    if (outIdx < maxBytes && base64[i + 3] != '=')
+      outBytes[outIdx++] = triple & 0xFF;
+  }
+
+  return outIdx;
+}
+
+// ========================================
+// Tamagotchi API Functions
+// ========================================
+
+/**
+ * Fetch tamagotchi state from server
+ */
+void fetchTamagotchi() {
+  String url = String(SERVER_BASE_URL) + String(TAMAGOTCHI_ENDPOINT);
+  String response = httpGet(url);
+
+  if (response.length() > 0) {
+    // Use larger buffer for image data - parse in chunks
+    DynamicJsonDocument doc(32768); // 32KB for JSON with base64 image
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (!error) {
+      cachedDogName = doc["dog"]["name"].as<String>();
+      cachedHunger = doc["dog"]["hunger"].as<int>();
+      cachedHappiness = doc["dog"]["happiness"].as<int>();
+      cachedHygiene = doc["dog"]["hygiene"].as<int>();
+      cachedHealth = doc["dog"]["health"].as<int>();
+      cachedState = doc["state"].as<String>();
+      cachedNeedsAttention = doc["needs_attention"].as<bool>();
+
+      // Decode sprite image
+      String imageBase64 = doc["image"].as<String>();
+      if (imageBase64.length() > 0) {
+        int decoded =
+            decodeBase64ToBuffer(imageBase64, dogSpriteBuffer, 80 * 80 * 2);
+        spriteLoaded = (decoded > 0);
+        Serial.printf("Sprite decoded: %d bytes\n", decoded);
+      }
+
+      lastTamagotchiFetch = millis();
+      Serial.printf("Tamagotchi updated: %s (State: %s)\n",
+                    cachedDogName.c_str(), cachedState.c_str());
+    } else {
+      Serial.println("JSON parse error: " + String(error.c_str()));
+      cachedState = "error";
+    }
+  } else {
+    cachedState = "offline";
+  }
+}
+
+/**
+ * Send action to tamagotchi (feed, play, clean)
+ */
+void sendTamagotchiAction(const char *action) {
+  String url = String(SERVER_BASE_URL) + "/api/tamagotchi/" + String(action);
+
+  if (!wifiConnected) {
+    Serial.println("WiFi not connected");
+    return;
+  }
+
+  HTTPClient http;
+  http.setTimeout(HTTP_TIMEOUT_MS);
+
+  Serial.print("POST: ");
+  Serial.println(url);
+
+  if (!http.begin(url)) {
+    Serial.println("HTTP begin failed");
+    return;
+  }
+
+  int httpCode = http.POST("");
+
+  if (httpCode > 0) {
+    Serial.printf("Action response code: %d\n", httpCode);
+    // Refresh state after action
+    fetchTamagotchi();
+  } else {
+    Serial.printf("Action failed: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
 }
 
 // ========================================
@@ -388,26 +544,165 @@ void drawDashboard3() {
  */
 void drawDashboard4() {
   sprite.fillSprite(COLOR_BACKGROUND);
-  drawHeader("TAMAGOTCHI");
 
-  // Title
+  // Header with attention indicator
+  if (cachedNeedsAttention) {
+    sprite.setTextColor(COLOR_ERROR, COLOR_BACKGROUND);
+    drawHeader("! BUDDY NEEDS YOU !");
+  } else {
+    drawHeader("TAMAGOTCHI");
+  }
+
+  // Fetch data if needed (every 30 seconds)
+  if (cachedDogName.length() == 0 || millis() - lastTamagotchiFetch > 30000) {
+    sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
+    sprite.setTextDatum(MC_DATUM);
+    sprite.drawString("Loading...", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 2);
+    sprite.pushSprite(0, 0);
+
+    fetchTamagotchi();
+    sprite.fillSprite(COLOR_BACKGROUND);
+    if (cachedNeedsAttention) {
+      sprite.setTextColor(COLOR_ERROR, COLOR_BACKGROUND);
+      drawHeader("! BUDDY NEEDS YOU !");
+    } else {
+      drawHeader("TAMAGOTCHI");
+    }
+  }
+
+  // Draw dog sprite (left side)
+  if (spriteLoaded) {
+    int spriteX = 10;
+    int spriteY = 25;
+    sprite.pushImage(spriteX, spriteY, 80, 80, dogSpriteBuffer);
+  } else {
+    // Fallback simple dog face
+    int cx = 50;
+    int cy = 65;
+    sprite.fillCircle(cx, cy, 25, COLOR_PRIMARY);
+    sprite.fillCircle(cx - 8, cy - 5, 4, COLOR_BACKGROUND);
+    sprite.fillCircle(cx + 8, cy - 5, 4, COLOR_BACKGROUND);
+    sprite.drawArc(cx, cy, 15, 12, 200, 340, COLOR_BACKGROUND, COLOR_PRIMARY);
+  }
+
+  // Draw dog name and state
   sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-  sprite.setTextDatum(MC_DATUM);
-  sprite.drawString("Coming Soon!", SCREEN_WIDTH / 2, 45, 4);
-
-  // Placeholder character (simple emoji-style)
-  sprite.fillCircle(SCREEN_WIDTH / 2, 90, 25, COLOR_PRIMARY);
-  sprite.fillCircle(SCREEN_WIDTH / 2 - 8, 85, 4, COLOR_BACKGROUND); // Left eye
-  sprite.fillCircle(SCREEN_WIDTH / 2 + 8, 85, 4, COLOR_BACKGROUND); // Right eye
-  sprite.drawArc(SCREEN_WIDTH / 2, 90, 15, 12, 200, 340, COLOR_BACKGROUND,
-                 COLOR_PRIMARY); // Smile
-
-  // Interaction hints
-  sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
   sprite.setTextDatum(TC_DATUM);
-  sprite.drawString("[ Feed ] [ Play ] [ Sleep ]", SCREEN_WIDTH / 2, 130, 2);
+  sprite.drawString(cachedDogName, 50, 110, 2);
+
+  sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+  sprite.drawString(cachedState, 50, 125, 1);
+
+  // Draw stat bars (right side)
+  int barX = 105;
+  int barY = 28;
+  int barWidth = 80;
+  int barHeight = 10;
+  int barSpacing = 22;
+
+  // Helper lambda-like function for drawing bars
+  auto drawStatBar = [&](int y, const char *label, int value, uint16_t color) {
+    // Label
+    sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+    sprite.setTextDatum(TL_DATUM);
+    sprite.drawString(label, barX, y - 12, 1);
+
+    // Bar background
+    sprite.fillRect(barX, y, barWidth, barHeight, 0x2104);
+
+    // Bar fill
+    int fillWidth = (value * barWidth) / 100;
+    sprite.fillRect(barX, y, fillWidth, barHeight, color);
+
+    // Value text
+    sprite.setTextDatum(TR_DATUM);
+    sprite.drawString(String(value), barX + barWidth + 20, y - 1, 1);
+  };
+
+  // Draw each stat bar
+  drawStatBar(barY, "Hunger", cachedHunger, TFT_GREEN);
+  drawStatBar(barY + barSpacing, "Happy", cachedHappiness, TFT_YELLOW);
+  drawStatBar(barY + barSpacing * 2, "Clean", cachedHygiene, TFT_CYAN);
+  drawStatBar(barY + barSpacing * 3, "Health", cachedHealth,
+              cachedHealth > 50 ? TFT_GREEN : TFT_RED);
+
+  // Draw action buttons at bottom
+  int btnY = 138;
+  int btnWidth = 100; // Wider buttons
+  int btnHeight = 22;
+  int btnSpacing = 6;
+  int btnStartX = 5;
+
+  auto drawButton = [&](int x, const char *label, uint16_t color) {
+    sprite.fillRoundRect(x, btnY, btnWidth, btnHeight, 4, color);
+    sprite.setTextColor(COLOR_BACKGROUND, color);
+    sprite.setTextDatum(MC_DATUM);
+    sprite.drawString(label, x + btnWidth / 2, btnY + btnHeight / 2, 2);
+  };
+
+  // Three action buttons distributed across 320px
+  // 5 + 100 + 6 + 100 + 6 + 100 = 317px
+  drawButton(btnStartX, "FEED", TFT_GREEN);
+  drawButton(btnStartX + btnWidth + btnSpacing, "PLAY", TFT_ORANGE);
+  drawButton(btnStartX + 2 * (btnWidth + btnSpacing), "CLEAN", TFT_CYAN);
 
   sprite.pushSprite(0, 0);
+}
+
+/**
+ * Handle touch specifically for Tamagotchi dashboard
+ * Returns true if touch was handled
+ */
+bool handleTamagotchiTouch(int16_t touchX, int16_t touchY) {
+  if (currentDashboard != 3)
+    return false;
+
+  // Touch driver with rotation 1 has X and Y SWAPPED and X INVERTED:
+  // - Raw touchY corresponds to horizontal position (screen X)
+  // - Raw touchX corresponds to vertical position (screen Y) inverted?
+  // User reports: "reaction happening on top of screen instead of bottom"
+  // This means high touchX (Top) passed the check check, while low touchX
+  // (Bottom) didn't. So Top = High X, Bottom = Low X. To map to Screen Y
+  // (0=Top, 170=Bottom):
+  int16_t screenX = touchY;       // Horizontal (0-320)
+  int16_t screenY = 170 - touchX; // Vertical (inverted)
+
+  Serial.printf("Tamagotchi touch: raw(%d,%d) -> screen(%d,%d)\n", touchX,
+                touchY, screenX, screenY);
+
+  // Button layout: 3 buttons spread across 320px width
+  // ~106px per button
+  int btn1Boundary = 106;
+  int btn2Boundary = 212;
+
+  // Check if touch is in button vertical zone (Bottom of screen)
+  // Screen Y is 0-170. Buttons are at bottom > 110
+  if (screenY >= 110) {
+    Serial.printf("In button zone. screenX=%d\n", screenX);
+
+    // FEED button: Left (0-106)
+    if (screenX < btn1Boundary) {
+      Serial.println("Touch: FEED");
+      sendTamagotchiAction("feed?type=meal");
+      return true;
+    }
+    // PLAY button: Middle (106-212)
+    else if (screenX >= btn1Boundary && screenX < btn2Boundary) {
+      Serial.println("Touch: PLAY");
+      sendTamagotchiAction("play");
+      return true;
+    }
+    // CLEAN button: Right (212-320)
+    else {
+      Serial.println("Touch: CLEAN");
+      sendTamagotchiAction("clean?type=bath");
+      return true;
+    }
+
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -460,11 +755,16 @@ void handleTouch() {
   if (touched) {
     Serial.printf("Touch detected: x=%d, y=%d\n", x[0], y[0]);
 
-    // Right side tap = next dashboard
-    if (x[0] > TOUCH_NEXT_THRESHOLD_X) {
-      nextDashboard();
-      delay(TOUCH_MIN_DURATION_MS * 2); // Debounce
+    // Check for Tamagotchi button presses first
+    if (handleTamagotchiTouch(x[0], y[0])) {
+      delay(TOUCH_MIN_DURATION_MS * 4); // Longer debounce for actions
+      renderDashboard();                // Refresh display
+      return;
     }
+
+    // Otherwise, any tap = next dashboard
+    nextDashboard();
+    delay(TOUCH_MIN_DURATION_MS * 2); // Debounce
   }
 }
 
