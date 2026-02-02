@@ -16,6 +16,7 @@
 #include "gallery_image.h"
 #include "images.h"
 #include "pin_config.h"
+#include "tesla.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -88,7 +89,8 @@ bool cachedNeedsAttention = false;
 uint16_t dogSpriteBuffer[80 * 80]; // 80x80 sprite buffer
 bool spriteLoaded = false;
 unsigned long lastTamagotchiFetch = 0;
-int tamagotchiTouchAction = 0; // 0=none, 1=feed, 2=play, 3=clean
+int tamagotchiTouchAction = 0;   // 0=none, 1=feed, 2=play, 3=clean
+bool tamagotchiMenuOpen = false; // Menu state
 
 // ========================================
 // HTTP Helper Functions
@@ -485,7 +487,7 @@ void drawCenteredText(String text, int y, int fontsize) {
 /**
  * Dashboard 1: Intervals Training Data Display
  */
-void drawDashboard1() {
+void drawIntervals() {
   sprite.fillSprite(COLOR_BACKGROUND);
   drawHeader("TRAINING DATA");
 
@@ -615,7 +617,7 @@ void drawDashboard1() {
 /**
  * Dashboard 2: Weather Display
  */
-void drawDashboard2() {
+void drawWeather() {
   sprite.fillSprite(COLOR_BACKGROUND);
   drawHeader("AIX-LES-BAINS"); // Updated title for specific location
 
@@ -698,7 +700,7 @@ void drawDashboard2() {
 /**
  * Dashboard 3: Image Rotation
  */
-void drawDashboard3() {
+void drawImages() {
   sprite.pushImage(0, 0, GALLERY_IMG_WIDTH, GALLERY_IMG_HEIGHT, gallery_image);
   sprite.pushSprite(0, 0);
 }
@@ -706,7 +708,7 @@ void drawDashboard3() {
 /**
  * Dashboard 4: Tamagotchi Placeholder
  */
-void drawDashboard4() {
+void drawPet() {
   sprite.fillSprite(COLOR_BACKGROUND);
 
   // Header with attention indicator
@@ -714,7 +716,7 @@ void drawDashboard4() {
     sprite.setTextColor(COLOR_ERROR, COLOR_BACKGROUND);
     drawHeader("! BUDDY NEEDS YOU !");
   } else {
-    drawHeader("TAMAGOTCHI");
+    drawHeader("TESLA");
   }
 
   // Fetch data if needed (every 30 seconds)
@@ -736,9 +738,9 @@ void drawDashboard4() {
 
   // Draw dog sprite (left side)
   if (spriteLoaded) {
-    int spriteX = 10;
-    int spriteY = 25;
-    sprite.pushImage(spriteX, spriteY, 80, 80, dogSpriteBuffer);
+    int spriteX = 5;
+    int spriteY = 5;
+    sprite.pushImage(0, 0, 320, 170, tesla);
   } else {
     // Fallback simple dog face
     int cx = 50;
@@ -751,15 +753,25 @@ void drawDashboard4() {
 
   // Draw dog name and state
   sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-  sprite.setTextDatum(TC_DATUM);
-  sprite.drawString(cachedDogName, 50, 110, 2);
+  sprite.setTextDatum(BL_DATUM); // Use Bottom Left datum
+  sprite.drawString(cachedDogName, 5, SCREEN_HEIGHT - 20, 2);
 
   sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
-  sprite.drawString(cachedState, 50, 125, 1);
+  sprite.drawString(cachedState, 5, SCREEN_HEIGHT - 5, 1);
 
-  // Draw stat bars (right side)
-  int barX = 105;
-  int barY = 35;
+  // Draw PoopCount and Weight (bottom center)
+  sprite.setTextDatum(BC_DATUM);
+  sprite.setTextColor(TFT_WHITE, COLOR_BACKGROUND);
+  sprite.drawString("Poops: " + String(cachedPoopCount), SCREEN_WIDTH / 2,
+                    SCREEN_HEIGHT - 20, 1);
+
+  sprite.setTextColor(TFT_YELLOW, COLOR_BACKGROUND);
+  sprite.drawString("Weight: " + String(cachedWeight, 1) + "kg",
+                    SCREEN_WIDTH / 2, SCREEN_HEIGHT - 5, 1);
+
+  // Draw stat bars (middle area)
+  int barX = 125;
+  int barY = 15;
   int barWidth = 80;
   int barHeight = 10;
   int barSpacing = 23;
@@ -789,27 +801,83 @@ void drawDashboard4() {
   drawStatBar(barY + barSpacing * 2, "Clean", cachedHygiene, TFT_CYAN);
   drawStatBar(barY + barSpacing * 3, "Health", cachedHealth,
               cachedHealth > 50 ? TFT_GREEN : TFT_RED);
-  drawStatBar(barY + barSpacing * 2, "Discipline", cachedDiscipline, TFT_CYAN);
+  drawStatBar(barY + barSpacing * 4, "Discipline", cachedDiscipline,
+              TFT_MAGENTA);
 
-  // Draw action buttons at bottom
-  int btnY = 138;
-  int btnWidth = 100; // Wider buttons
-  int btnHeight = 22;
-  int btnSpacing = 6;
-  int btnStartX = 5;
+  // Draw large MENU button on the right side (takes ~20% of width, most of
+  // height)
+  int menuBtnX = SCREEN_WIDTH - 64; // ~20% of 320 = 64px
+  int menuBtnY = 25;
+  int menuBtnWidth = 60;
+  int menuBtnHeight = 135; // Most of the height (170 - 25 - 10)
 
-  auto drawButton = [&](int x, const char *label, uint16_t color) {
-    sprite.fillRoundRect(x, btnY, btnWidth, btnHeight, 4, color);
-    sprite.setTextColor(COLOR_BACKGROUND, color);
-    sprite.setTextDatum(MC_DATUM);
-    sprite.drawString(label, x + btnWidth / 2, btnY + btnHeight / 2, 2);
-  };
+  sprite.fillRoundRect(menuBtnX, menuBtnY, menuBtnWidth, menuBtnHeight, 6,
+                       TFT_PURPLE);
+  sprite.setTextColor(TFT_WHITE, TFT_PURPLE);
+  sprite.setTextDatum(MC_DATUM);
 
-  // Three action buttons distributed across 320px
-  // 5 + 100 + 6 + 100 + 6 + 100 = 317px
-  drawButton(btnStartX, "FEED", TFT_GREEN);
-  drawButton(btnStartX + btnWidth + btnSpacing, "PLAY", TFT_ORANGE);
-  drawButton(btnStartX + 2 * (btnWidth + btnSpacing), "CLEAN", TFT_CYAN);
+  // Draw "MENU" text rotated visually by drawing it vertically
+  int textY = menuBtnY + menuBtnHeight / 2;
+  sprite.drawString("0", menuBtnX + menuBtnWidth / 2, textY, 4);
+
+  // If menu is open, draw menu overlay
+  if (tamagotchiMenuOpen) {
+    // Semi-transparent background (draw a darkened rectangle)
+    sprite.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0x0000);
+
+    // Draw menu panel - maximize screen usage
+    int menuPanelX = 5;
+    int menuPanelY = 5;
+    int menuPanelWidth = 310;  // Nearly full width
+    int menuPanelHeight = 160; // Nearly full height
+
+    // Menu background
+    sprite.fillRoundRect(menuPanelX, menuPanelY, menuPanelWidth,
+                         menuPanelHeight, 8, 0x2104);
+    sprite.drawRoundRect(menuPanelX, menuPanelY, menuPanelWidth,
+                         menuPanelHeight, 8, COLOR_PRIMARY);
+
+    // Menu title
+    sprite.setTextColor(COLOR_PRIMARY, 0x2104);
+    sprite.setTextDatum(TC_DATUM);
+    sprite.drawString("ACTIONS", menuPanelX + menuPanelWidth / 2,
+                      menuPanelY + 8, 2);
+
+    // Menu buttons (3 columns, 2 rows) - maximize button sizes
+    int btnSpacingX = 6;
+    int btnSpacingY = 6;
+    int btnStartX = menuPanelX + 8;
+    int btnStartY = menuPanelY + 28;
+
+    // Calculate button dimensions to fill available space
+    // Available width: 310 - 16 (margins) = 294
+    // 3 buttons with 2 gaps: (294 - 12) / 3 = 94px
+    int btnWidth = 94;
+
+    // Available height: 160 - 28 (title) - 8 (bottom margin) = 124
+    // 2 buttons with 1 gap: (124 - 6) / 2 = 59px
+    int btnHeight = 59;
+
+    auto drawMenuButton = [&](int col, int row, const char *label,
+                              uint16_t color) {
+      int x = btnStartX + col * (btnWidth + btnSpacingX);
+      int y = btnStartY + row * (btnHeight + btnSpacingY);
+      sprite.fillRoundRect(x, y, btnWidth, btnHeight, 6, color);
+      sprite.setTextColor(TFT_WHITE, color);
+      sprite.setTextDatum(MC_DATUM);
+      sprite.drawString(label, x + btnWidth / 2, y + btnHeight / 2, 4);
+    };
+
+    // First row: Feed, Clean, Play
+    drawMenuButton(0, 0, "FEED", TFT_GREEN);
+    drawMenuButton(1, 0, "CLEAN", TFT_CYAN);
+    drawMenuButton(2, 0, "PLAY", TFT_ORANGE);
+
+    // Second row: Discipline, Cure, Back
+    drawMenuButton(0, 1, "DISCIP", TFT_MAGENTA);
+    drawMenuButton(1, 1, "CURE", TFT_RED);
+    drawMenuButton(2, 1, "BACK", TFT_DARKGREY);
+  }
 
   sprite.pushSprite(0, 0);
 }
@@ -824,46 +892,88 @@ bool handleTamagotchiTouch(int16_t touchX, int16_t touchY) {
 
   // Touch driver with rotation 1 has X and Y SWAPPED and X INVERTED:
   // - Raw touchY corresponds to horizontal position (screen X)
-  // - Raw touchX corresponds to vertical position (screen Y) inverted?
-  // User reports: "reaction happening on top of screen instead of bottom"
-  // This means high touchX (Top) passed the check check, while low touchX
-  // (Bottom) didn't. So Top = High X, Bottom = Low X. To map to Screen Y
-  // (0=Top, 170=Bottom):
+  // - Raw touchX corresponds to vertical position (screen Y) inverted
   int16_t screenX = touchY;       // Horizontal (0-320)
   int16_t screenY = 170 - touchX; // Vertical (inverted)
 
   Serial.printf("Tamagotchi touch: raw(%d,%d) -> screen(%d,%d)\n", touchX,
                 touchY, screenX, screenY);
 
-  // Button layout: 3 buttons spread across 320px width
-  // ~106px per button
-  int btn1Boundary = 106;
-  int btn2Boundary = 212;
+  // If menu is open, handle menu touch
+  if (tamagotchiMenuOpen) {
+    // Menu panel dimensions (must match drawPet)
+    int menuPanelX = 5;
+    int menuPanelY = 5;
+    int btnWidth = 94;
+    int btnHeight = 59;
+    int btnSpacingX = 6;
+    int btnSpacingY = 6;
+    int btnStartX = menuPanelX + 8;
+    int btnStartY = menuPanelY + 28;
 
-  // Check if touch is in button vertical zone (Bottom of screen)
-  // Screen Y is 0-170. Buttons are at bottom > 110
-  if (screenY >= 110) {
-    Serial.printf("In button zone. screenX=%d\n", screenX);
+    // Check each button (3 cols x 2 rows)
+    for (int row = 0; row < 2; row++) {
+      for (int col = 0; col < 3; col++) {
+        int x = btnStartX + col * (btnWidth + btnSpacingX);
+        int y = btnStartY + row * (btnHeight + btnSpacingY);
 
-    // FEED button: Left (0-106)
-    if (screenX < btn1Boundary) {
-      Serial.println("Touch: FEED");
-      sendTamagotchiAction("feed?type=meal");
-      return true;
-    }
-    // PLAY button: Middle (106-212)
-    else if (screenX >= btn1Boundary && screenX < btn2Boundary) {
-      Serial.println("Touch: PLAY");
-      sendTamagotchiAction("play");
-      return true;
-    }
-    // CLEAN button: Right (212-320)
-    else {
-      Serial.println("Touch: CLEAN");
-      sendTamagotchiAction("clean?type=bath");
-      return true;
+        if (screenX >= x && screenX < x + btnWidth && screenY >= y &&
+            screenY < y + btnHeight) {
+
+          // Determine which button was pressed
+          int btnIndex = row * 3 + col;
+
+          switch (btnIndex) {
+          case 0: // FEED
+            Serial.println("Menu action: FEED");
+            sendTamagotchiAction("feed?type=meal");
+            tamagotchiMenuOpen = false;
+            return true;
+          case 1: // CLEAN
+            Serial.println("Menu action: CLEAN");
+            sendTamagotchiAction("clean?type=bath");
+            tamagotchiMenuOpen = false;
+            return true;
+          case 2: // PLAY
+            Serial.println("Menu action: PLAY");
+            sendTamagotchiAction("play");
+            tamagotchiMenuOpen = false;
+            return true;
+          case 3: // DISCIPLINE
+            Serial.println("Menu action: DISCIPLINE");
+            sendTamagotchiAction("discipline");
+            tamagotchiMenuOpen = false;
+            return true;
+          case 4: // CURE
+            Serial.println("Menu action: CURE");
+            sendTamagotchiAction("cure");
+            tamagotchiMenuOpen = false;
+            return true;
+          case 5: // BACK
+            Serial.println("Menu action: BACK");
+            tamagotchiMenuOpen = false;
+            return true;
+          }
+        }
+      }
     }
 
+    // Click outside menu = close menu
+    tamagotchiMenuOpen = false;
+    return true;
+  }
+
+  // Menu not open - check for MENU button press
+  // Menu button: right side of screen
+  int menuBtnX = SCREEN_WIDTH - 64;
+  int menuBtnY = 25;
+  int menuBtnWidth = 60;
+  int menuBtnHeight = 135;
+
+  if (screenX >= menuBtnX && screenX < menuBtnX + menuBtnWidth &&
+      screenY >= menuBtnY && screenY < menuBtnY + menuBtnHeight) {
+    Serial.println("Touch: MENU button - Opening menu");
+    tamagotchiMenuOpen = true;
     return true;
   }
 
@@ -876,16 +986,16 @@ bool handleTamagotchiTouch(int16_t touchX, int16_t touchY) {
 void renderDashboard() {
   switch (currentDashboard) {
   case 0:
-    drawDashboard1();
+    drawIntervals();
     break;
   case 1:
-    drawDashboard2();
+    drawWeather();
     break;
   case 2:
-    drawDashboard3();
+    drawImages();
     break;
   case 3:
-    drawDashboard4();
+    drawPet();
     break;
   }
 }
