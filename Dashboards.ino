@@ -13,6 +13,7 @@
  */
 
 #include "config.h"
+#include "gallery_image.h"
 #include "images.h"
 #include "pin_config.h"
 #include <Arduino.h>
@@ -698,31 +699,7 @@ void drawDashboard2() {
  * Dashboard 3: Image Rotation
  */
 void drawDashboard3() {
-  sprite.fillSprite(COLOR_BACKGROUND);
-  drawHeader("GALLERY");
-
-  // Rotate through images
-  if (millis() - lastImageRotationTime > IMAGE_ROTATION_MS) {
-    currentImageIndex = (currentImageIndex + 1) % NUM_ROTATION_IMAGES;
-    lastImageRotationTime = millis();
-  }
-
-  // Draw current image
-  int imgWidth = 120;
-  int imgHeight = 100;
-  int x = (SCREEN_WIDTH - imgWidth) / 2;
-  int y = (SCREEN_HEIGHT - imgHeight) / 2 + 5;
-
-  sprite.pushImage(x, y, imgWidth, imgHeight,
-                   placeholderImages[currentImageIndex]);
-
-  // Image counter
-  sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
-  sprite.setTextDatum(BC_DATUM);
-  String counter =
-      String(currentImageIndex + 1) + " / " + String(NUM_ROTATION_IMAGES);
-  sprite.drawString(counter, SCREEN_WIDTH / 2, SCREEN_HEIGHT - 20, 2);
-
+  sprite.pushImage(0, 0, GALLERY_IMG_WIDTH, GALLERY_IMG_HEIGHT, gallery_image);
   sprite.pushSprite(0, 0);
 }
 
