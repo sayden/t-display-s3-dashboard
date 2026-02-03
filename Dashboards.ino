@@ -58,15 +58,11 @@ float cachedActivity1AvgWatts = 0;
 float cachedActivity1NormWatts = 0;
 float cachedActivity1AvgHR = 0;
 float cachedActivity1LRBalance = 0;
-float cachedActivity1FTP = 0;
-float cachedActivity1Calories = 0;
 // Activity 2 (oldest)
 float cachedActivity2AvgWatts = 0;
 float cachedActivity2NormWatts = 0;
 float cachedActivity2AvgHR = 0;
 float cachedActivity2LRBalance = 0;
-float cachedActivity2FTP = 0;
-float cachedActivity2Calories = 0;
 float cachedActivity1Distance = 0;
 float cachedActivity1MovingTime = 0;
 float cachedActivity2Distance = 0;
@@ -190,8 +186,6 @@ void fetchIntervals() {
           cachedActivity1NormWatts = act1["icu_weighted_avg_watts"].as<float>();
           cachedActivity1AvgHR = act1["average_heartrate"].as<float>();
           cachedActivity1LRBalance = act1["avg_lr_balance"].as<float>();
-          cachedActivity1FTP = act1["icu_rolling_ftp"].as<float>();
-          cachedActivity1Calories = act1["calories"].as<float>();
           cachedActivity1Distance = act1["distance"].as<float>();
           cachedActivity1MovingTime = act1["moving_time"].as<float>();
           cachedActivity1Date = act1["start_date_local"].as<String>();
@@ -202,8 +196,6 @@ void fetchIntervals() {
           cachedActivity2NormWatts = act2["icu_weighted_avg_watts"].as<float>();
           cachedActivity2AvgHR = act2["average_heartrate"].as<float>();
           cachedActivity2LRBalance = act2["avg_lr_balance"].as<float>();
-          cachedActivity2FTP = act2["icu_rolling_ftp"].as<float>();
-          cachedActivity2Calories = act2["calories"].as<float>();
           cachedActivity2Distance = act2["distance"].as<float>();
           cachedActivity2MovingTime = act2["moving_time"].as<float>();
           cachedActivity2Date = act2["start_date_local"].as<String>();
@@ -535,11 +527,10 @@ void drawIntervals() {
   // Available space: 320x145
   // Layout: Left column (0-157), Separator (158-161), Right column (162-319)
 
-  int leftX = 5;
-  int rightX = 165;
-  int columnWidth = 152;
-  int startY = 20;
-  int lineHeight = 13;
+  int leftX = 2;
+  int rightX = 162;
+  int startY = 22;
+  int lineHeight = 18;
 
   sprite.setTextDatum(TL_DATUM);
   sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
@@ -549,34 +540,30 @@ void drawIntervals() {
                        int decimals) {
     // Label
     sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-    sprite.drawString(label, x, y, 1);
+    sprite.drawString(label, x, y, 2);
 
     // Value
     sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
     String valStr = String(value, decimals);
-    sprite.drawString(valStr, x + 70, y, 1);
+    sprite.drawString(valStr, x + 105, y, 2);
   };
 
   // LEFT COLUMN - Oldest Activity
   sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
   sprite.drawString(cachedActivity1Date, leftX + 40, startY, 2);
 
-  int y = startY + 18;
-  drawValue(leftX, y, "Avg Power:", cachedActivity1AvgWatts, 0);
+  int y = startY + 20;
+  drawValue(leftX, y, "Avg Pwr:", cachedActivity1AvgWatts, 0);
   y += lineHeight;
-  drawValue(leftX, y, "Dist (km):", cachedActivity1Distance / 1000.0, 1);
+  drawValue(leftX, y, "Dist km:", cachedActivity1Distance / 1000.0, 1);
   y += lineHeight;
-  drawValue(leftX, y, "Time (m):", cachedActivity1MovingTime / 60.0, 0);
+  drawValue(leftX, y, "Time m:", cachedActivity1MovingTime / 60.0, 0);
   y += lineHeight;
-  drawValue(leftX, y, "Norm Power:", cachedActivity1NormWatts, 0);
+  drawValue(leftX, y, "Norm Pwr:", cachedActivity1NormWatts, 0);
   y += lineHeight;
   drawValue(leftX, y, "Avg HR:", cachedActivity1AvgHR, 0);
   y += lineHeight;
-  drawValue(leftX, y, "L/R:", cachedActivity1LRBalance, 1);
-  y += lineHeight;
-  drawValue(leftX, y, "FTP:", cachedActivity1FTP, 0);
-  y += lineHeight;
-  drawValue(leftX, y, "Kcal:", cachedActivity1Calories, 0);
+  drawValue(leftX, y, "L/R Bal:", cachedActivity1LRBalance, 1);
 
   // VERTICAL SEPARATOR
   sprite.drawFastVLine(159, 25, 120, COLOR_SECONDARY);
@@ -585,22 +572,18 @@ void drawIntervals() {
   sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
   sprite.drawString(cachedActivity2Date, rightX + 40, startY, 2);
 
-  y = startY + 18;
-  drawValue(rightX, y, "Avg Power:", cachedActivity2AvgWatts, 0);
+  y = startY + 20;
+  drawValue(rightX, y, "Avg Pwr:", cachedActivity2AvgWatts, 0);
   y += lineHeight;
-  drawValue(rightX, y, "Dist (km):", cachedActivity2Distance / 1000.0, 1);
+  drawValue(rightX, y, "Dist km:", cachedActivity2Distance / 1000.0, 1);
   y += lineHeight;
-  drawValue(rightX, y, "Time (m):", cachedActivity2MovingTime / 60.0, 0);
+  drawValue(rightX, y, "Time m:", cachedActivity2MovingTime / 60.0, 0);
   y += lineHeight;
-  drawValue(rightX, y, "Norm Power:", cachedActivity2NormWatts, 0);
+  drawValue(rightX, y, "Norm Pwr:", cachedActivity2NormWatts, 0);
   y += lineHeight;
   drawValue(rightX, y, "Avg HR:", cachedActivity2AvgHR, 0);
   y += lineHeight;
-  drawValue(rightX, y, "L/R:", cachedActivity2LRBalance, 1);
-  y += lineHeight;
-  drawValue(rightX, y, "FTP:", cachedActivity2FTP, 0);
-  y += lineHeight;
-  drawValue(rightX, y, "Kcal:", cachedActivity2Calories, 0);
+  drawValue(rightX, y, "L/R Bal:", cachedActivity2LRBalance, 1);
 
   // FITNESS METRICS AT BOTTOM (Horizontal separator)
   sprite.drawFastHLine(5, 148, SCREEN_WIDTH - 10, COLOR_SECONDARY);
