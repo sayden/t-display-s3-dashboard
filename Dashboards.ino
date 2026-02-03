@@ -23,6 +23,7 @@
 #include <TFT_eSPI.h>
 #include <TouchDrvCSTXXX.hpp>
 #include <WiFi.h>
+#include <time.h>
 
 // ========================================
 // Global Objects
@@ -437,6 +438,20 @@ void drawHeader(String title) {
 }
 
 /**
+ * Draw Time Overlay (Top Right)
+ */
+void drawGlobalOverlay() {
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+    sprite.setTextDatum(TR_DATUM);
+    char timeStr[6];
+    strftime(timeStr, sizeof(timeStr), "%H:%M", &timeinfo);
+    sprite.drawString(timeStr, SCREEN_WIDTH - 2, 4, 2);
+  }
+}
+
+/**
  * Draw centered text with word wrapping
  */
 void drawCenteredText(String text, int y, int fontsize) {
@@ -611,6 +626,7 @@ void drawIntervals() {
   sprite.drawString(rStr, curX, curY, 2);
   curX += sprite.textWidth(rStr, 2);
 
+  drawGlobalOverlay();
   sprite.pushSprite(0, 0);
 }
 
@@ -694,6 +710,7 @@ void drawWeather() {
                      cachedForecastTomCond, cachedForecastTomPrecip);
   }
 
+  drawGlobalOverlay();
   sprite.pushSprite(0, 0);
 }
 
@@ -702,6 +719,7 @@ void drawWeather() {
  */
 void drawImages() {
   sprite.pushImage(0, 0, GALLERY_IMG_WIDTH, GALLERY_IMG_HEIGHT, gallery_image);
+  drawGlobalOverlay();
   sprite.pushSprite(0, 0);
 }
 
@@ -771,8 +789,8 @@ void drawPet() {
 
   // Draw stat bars (middle area)
   int barX = 125;
-  int barY = 15;
-  int barWidth = 80;
+  int barY = 20;
+  int barWidth = 90;
   int barHeight = 10;
   int barSpacing = 23;
 
@@ -807,9 +825,9 @@ void drawPet() {
   // Draw large MENU button on the right side (takes ~20% of width, most of
   // height)
   int menuBtnX = SCREEN_WIDTH - 64; // ~20% of 320 = 64px
-  int menuBtnY = 25;
+  int menuBtnY = 15;
   int menuBtnWidth = 60;
-  int menuBtnHeight = 135; // Most of the height (170 - 25 - 10)
+  int menuBtnHeight = 136; // Most of the height (170 - 25 - 10)
 
   sprite.fillRoundRect(menuBtnX, menuBtnY, menuBtnWidth, menuBtnHeight, 6,
                        TFT_PURPLE);
@@ -879,6 +897,7 @@ void drawPet() {
     drawMenuButton(2, 1, "BACK", TFT_DARKGREY);
   }
 
+  drawGlobalOverlay();
   sprite.pushSprite(0, 0);
 }
 
@@ -1083,6 +1102,10 @@ void initWiFi() {
     sprite.drawString(WiFi.localIP().toString(), SCREEN_WIDTH / 2,
                       SCREEN_HEIGHT / 2 + 10, 2);
     sprite.pushSprite(0, 0);
+
+    // Initialize NTP time
+    configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
+
     delay(2000);
   } else {
     wifiConnected = false;

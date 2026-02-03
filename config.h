@@ -44,6 +44,13 @@
 #define NUM_ROTATION_IMAGES 4 // Number of images to rotate through
 
 // ========================================
+// Time Configuration
+// ========================================
+#define NTP_SERVER "pool.ntp.org"
+#define GMT_OFFSET_SEC 3600      // GMT+1 (UTC+1)
+#define DAYLIGHT_OFFSET_SEC 3600 // Daylight saving (+1h)
+
+// ========================================
 // Touch Configuration
 // ========================================
 // Touch detection area for "next dashboard" gesture
