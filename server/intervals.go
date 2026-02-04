@@ -361,7 +361,7 @@ func (i *intervals) GetActivities() ([]Activity, error) {
 	now := time.Now()
 	oldest := now.AddDate(0, 0, -14).Format("2006-01-02")
 
-	url := fmt.Sprintf("https://intervals.icu/api/v1/athlete/%s/activities?oldest=%s&limit=2", athleteID, oldest)
+	url := fmt.Sprintf("https://intervals.icu/api/v1/athlete/%s/activities?oldest=%s&limit=3", athleteID, oldest)
 
 	var activities []Activity
 	if err := i.makeRequest(url, &activities); err != nil {
@@ -406,8 +406,8 @@ func (i *intervals) GetDisplayData(date string) (*DisplayData, error) {
 	}
 
 	// Process activities: reverse order (oldest to newest) and format date
-	// API returns newest first due to limit=2 on usually sorted chronological list
-	count := min(len(activities), 2)
+	// API returns newest first due to limit=3 on usually sorted chronological list
+	count := min(len(activities), 3)
 
 	for j := count - 1; j >= 0; j-- {
 		a := activities[j]

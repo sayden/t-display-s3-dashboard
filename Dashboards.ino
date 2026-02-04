@@ -58,7 +58,7 @@ float cachedActivity1AvgWatts = 0;
 float cachedActivity1NormWatts = 0;
 float cachedActivity1AvgHR = 0;
 float cachedActivity1LRBalance = 0;
-// Activity 2 (oldest)
+// Activity 2 (middle)
 float cachedActivity2AvgWatts = 0;
 float cachedActivity2NormWatts = 0;
 float cachedActivity2AvgHR = 0;
@@ -69,6 +69,14 @@ float cachedActivity2Distance = 0;
 float cachedActivity2MovingTime = 0;
 String cachedActivity1Date = "";
 String cachedActivity2Date = "";
+// Activity 3 (newest)
+float cachedActivity3AvgWatts = 0;
+float cachedActivity3NormWatts = 0;
+float cachedActivity3AvgHR = 0;
+float cachedActivity3LRBalance = 0;
+float cachedActivity3Distance = 0;
+float cachedActivity3MovingTime = 0;
+String cachedActivity3Date = "";
 unsigned long lastIntervalsFetch = 0;
 
 // Tamagotchi cached data
@@ -176,30 +184,38 @@ void fetchIntervals() {
       cachedAtl = doc["atl"].as<float>();
       cachedRampRate = doc["rampRate"].as<float>();
 
-      // Parse activities (expect at least 2)
+      // Parse activities (expect at least 3)
       JsonArray activities = doc["activities"];
-      if (activities.size() >= 2) {
-        if (activities.size() >= 2) {
-          // Activity 0 is oldest (from server)
-          JsonObject act1 = activities[0];
-          cachedActivity1AvgWatts = act1["icu_average_watts"].as<float>();
-          cachedActivity1NormWatts = act1["icu_weighted_avg_watts"].as<float>();
-          cachedActivity1AvgHR = act1["average_heartrate"].as<float>();
-          cachedActivity1LRBalance = act1["avg_lr_balance"].as<float>();
-          cachedActivity1Distance = act1["distance"].as<float>();
-          cachedActivity1MovingTime = act1["moving_time"].as<float>();
-          cachedActivity1Date = act1["start_date_local"].as<String>();
+      if (activities.size() >= 3) {
+        // Activity 0 is oldest (from server)
+        JsonObject act1 = activities[0];
+        cachedActivity1AvgWatts = act1["icu_average_watts"].as<float>();
+        cachedActivity1NormWatts = act1["icu_weighted_avg_watts"].as<float>();
+        cachedActivity1AvgHR = act1["average_heartrate"].as<float>();
+        cachedActivity1LRBalance = act1["avg_lr_balance"].as<float>();
+        cachedActivity1Distance = act1["distance"].as<float>();
+        cachedActivity1MovingTime = act1["moving_time"].as<float>();
+        cachedActivity1Date = act1["start_date_local"].as<String>();
 
-          // Activity 1 is newest (from server)
-          JsonObject act2 = activities[1];
-          cachedActivity2AvgWatts = act2["icu_average_watts"].as<float>();
-          cachedActivity2NormWatts = act2["icu_weighted_avg_watts"].as<float>();
-          cachedActivity2AvgHR = act2["average_heartrate"].as<float>();
-          cachedActivity2LRBalance = act2["avg_lr_balance"].as<float>();
-          cachedActivity2Distance = act2["distance"].as<float>();
-          cachedActivity2MovingTime = act2["moving_time"].as<float>();
-          cachedActivity2Date = act2["start_date_local"].as<String>();
-        }
+        // Activity 1 is middle (from server)
+        JsonObject act2 = activities[1];
+        cachedActivity2AvgWatts = act2["icu_average_watts"].as<float>();
+        cachedActivity2NormWatts = act2["icu_weighted_avg_watts"].as<float>();
+        cachedActivity2AvgHR = act2["average_heartrate"].as<float>();
+        cachedActivity2LRBalance = act2["avg_lr_balance"].as<float>();
+        cachedActivity2Distance = act2["distance"].as<float>();
+        cachedActivity2MovingTime = act2["moving_time"].as<float>();
+        cachedActivity2Date = act2["start_date_local"].as<String>();
+
+        // Activity 2 is newest (from server)
+        JsonObject act3 = activities[2];
+        cachedActivity3AvgWatts = act3["icu_average_watts"].as<float>();
+        cachedActivity3NormWatts = act3["icu_weighted_avg_watts"].as<float>();
+        cachedActivity3AvgHR = act3["average_heartrate"].as<float>();
+        cachedActivity3LRBalance = act3["avg_lr_balance"].as<float>();
+        cachedActivity3Distance = act3["distance"].as<float>();
+        cachedActivity3MovingTime = act3["moving_time"].as<float>();
+        cachedActivity3Date = act3["start_date_local"].as<String>();
       }
 
       lastIntervalsFetch = millis();
@@ -523,67 +539,109 @@ void drawIntervals() {
     return;
   }
 
-  // Screen: 320x170, Header takes ~25px
-  // Available space: 320x145
-  // Layout: Left column (0-157), Separator (158-161), Right column (162-319)
+  // Screen: 320x170, Header takes ~20px
+  // Layout: 3 columns with separators
+  // Column 1: 0-103, Sep: 105, Column 2: 108-211, Sep: 213, Column 3: 216-319
 
-  int leftX = 2;
-  int rightX = 162;
+  int col1X = 2;
+  int col2X = 108;
+  int col3X = 216;
   int startY = 22;
   int lineHeight = 18;
 
   sprite.setTextDatum(TL_DATUM);
   sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
 
-  // Helper function to draw a labeled value
+  // Helper for labeled float value
   auto drawValue = [&](int x, int y, const char *label, float value,
                        int decimals) {
-    // Label
     sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
-    sprite.drawString(label, x, y, 2);
-
-    // Value
+    sprite.drawString(label, x+2, y, 2);
     sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
-    String valStr = String(value, decimals);
-    sprite.drawString(valStr, x + 105, y, 2);
+    sprite.drawString(String(value, decimals), x + 45, y, 2);
   };
 
-  // LEFT COLUMN - Oldest Activity
-  sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
-  sprite.drawString(cachedActivity1Date, leftX + 40, startY, 2);
+  // Helper for labeled string value
+  auto drawStrValue = [&](int x, int y, const char *label, String valStr) {
+    sprite.setTextColor(COLOR_SECONDARY, COLOR_BACKGROUND);
+    sprite.drawString(label, x+2, y, 2);
+    sprite.setTextColor(COLOR_TEXT, COLOR_BACKGROUND);
+    sprite.drawString(valStr, x + 45, y, 2);
+  };
 
+  // Calculate speeds (km/h)
+  float speed1 =
+      (cachedActivity1MovingTime > 0)
+          ? (cachedActivity1Distance * 3.6 / cachedActivity1MovingTime)
+          : 0;
+  float speed2 =
+      (cachedActivity2MovingTime > 0)
+          ? (cachedActivity2Distance * 3.6 / cachedActivity2MovingTime)
+          : 0;
+  float speed3 =
+      (cachedActivity3MovingTime > 0)
+          ? (cachedActivity3Distance * 3.6 / cachedActivity3MovingTime)
+          : 0;
+
+  // COLUMN 1
+  sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
+  sprite.drawString(cachedActivity1Date, col1X + 20, startY, 2);
   int y = startY + 20;
-  drawValue(leftX, y, "Avg Pwr:", cachedActivity1AvgWatts, 0);
+  drawStrValue(col1X, y, "P/NP:",
+               String(cachedActivity1AvgWatts, 0) + "/" +
+                   String(cachedActivity1NormWatts, 0));
   y += lineHeight;
-  drawValue(leftX, y, "Dist km:", cachedActivity1Distance / 1000.0, 1);
+  drawValue(col1X, y, "Spd:", speed1, 1);
   y += lineHeight;
-  drawValue(leftX, y, "Time m:", cachedActivity1MovingTime / 60.0, 0);
+  drawValue(col1X, y, "Dist:", cachedActivity1Distance / 1000.0, 1);
   y += lineHeight;
-  drawValue(leftX, y, "Norm Pwr:", cachedActivity1NormWatts, 0);
+  drawValue(col1X, y, "Time:", cachedActivity1MovingTime / 60.0, 0);
   y += lineHeight;
-  drawValue(leftX, y, "Avg HR:", cachedActivity1AvgHR, 0);
+  drawValue(col1X, y, "HR:", cachedActivity1AvgHR, 0);
   y += lineHeight;
-  drawValue(leftX, y, "L/R Bal:", cachedActivity1LRBalance, 1);
+  drawValue(col1X, y, "L/R:", cachedActivity1LRBalance, 1);
 
-  // VERTICAL SEPARATOR
-  sprite.drawFastVLine(159, 25, 120, COLOR_SECONDARY);
+  // VERTICAL SEPARATOR 1
+  sprite.drawFastVLine(105, 25, 120, COLOR_SECONDARY);
 
-  // RIGHT COLUMN - Newest Activity
+  // COLUMN 2
   sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
-  sprite.drawString(cachedActivity2Date, rightX + 40, startY, 2);
-
+  sprite.drawString(cachedActivity2Date, col2X + 20, startY, 2);
   y = startY + 20;
-  drawValue(rightX, y, "Avg Pwr:", cachedActivity2AvgWatts, 0);
+  drawStrValue(col2X, y, "P/NP:",
+               String(cachedActivity2AvgWatts, 0) + "/" +
+                   String(cachedActivity2NormWatts, 0));
   y += lineHeight;
-  drawValue(rightX, y, "Dist km:", cachedActivity2Distance / 1000.0, 1);
+  drawValue(col2X, y, "Spd:", speed2, 1);
   y += lineHeight;
-  drawValue(rightX, y, "Time m:", cachedActivity2MovingTime / 60.0, 0);
+  drawValue(col2X, y, "Dist:", cachedActivity2Distance / 1000.0, 1);
   y += lineHeight;
-  drawValue(rightX, y, "Norm Pwr:", cachedActivity2NormWatts, 0);
+  drawValue(col2X, y, "Time:", cachedActivity2MovingTime / 60.0, 0);
   y += lineHeight;
-  drawValue(rightX, y, "Avg HR:", cachedActivity2AvgHR, 0);
+  drawValue(col2X, y, "HR:", cachedActivity2AvgHR, 0);
   y += lineHeight;
-  drawValue(rightX, y, "L/R Bal:", cachedActivity2LRBalance, 1);
+  drawValue(col2X, y, "L/R:", cachedActivity2LRBalance, 1);
+
+  // VERTICAL SEPARATOR 2
+  sprite.drawFastVLine(213, 25, 120, COLOR_SECONDARY);
+
+  // COLUMN 3
+  sprite.setTextColor(COLOR_PRIMARY, COLOR_BACKGROUND);
+  sprite.drawString(cachedActivity3Date, col3X + 20, startY, 2);
+  y = startY + 20;
+  drawStrValue(col3X, y, "P/NP:",
+               String(cachedActivity3AvgWatts, 0) + "/" +
+                   String(cachedActivity3NormWatts, 0));
+  y += lineHeight;
+  drawValue(col3X, y, "Spd:", speed3, 1);
+  y += lineHeight;
+  drawValue(col3X, y, "Dist:", cachedActivity3Distance / 1000.0, 1);
+  y += lineHeight;
+  drawValue(col3X, y, "Time:", cachedActivity3MovingTime / 60.0, 0);
+  y += lineHeight;
+  drawValue(col3X, y, "HR:", cachedActivity3AvgHR, 0);
+  y += lineHeight;
+  drawValue(col3X, y, "L/R:", cachedActivity3LRBalance, 1);
 
   // FITNESS METRICS AT BOTTOM (Horizontal separator)
   sprite.drawFastHLine(5, 148, SCREEN_WIDTH - 10, COLOR_SECONDARY);
